@@ -137,7 +137,7 @@
           <i class="fa-solid fa-chart-pie text-xs"></i> Tableau de bord
         </button>
 
-        <button onclick="switchTab('summary')" id="tab-btn-summary" class="nav-tab admin-only px-4 py-2 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center gap-2">
+        <button onclick="switchTab('summary')" id="tab-btn-summary" class="nav-tab px-4 py-2 rounded-lg font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center gap-2">
           <i class="fa-solid fa-file-invoice text-xs text-emerald-400"></i> Fiche Bilan
         </button>
 
@@ -179,7 +179,7 @@
       <button onclick="switchTab('dashboard')" id="m-tab-dashboard" class="text-indigo-400 font-bold flex flex-col items-center gap-1">
         <i class="fa-solid fa-chart-pie text-base"></i> Tableau
       </button>
-      <button onclick="switchTab('summary')" id="m-tab-summary" class="admin-only text-slate-400 flex flex-col items-center gap-1">
+      <button onclick="switchTab('summary')" id="m-tab-summary" class="text-slate-400 flex flex-col items-center gap-1">
         <i class="fa-solid fa-file-invoice text-base text-emerald-400"></i> Bilan
       </button>
       <button onclick="switchTab('rewards')" id="m-tab-rewards" class="admin-only text-slate-400 flex flex-col items-center gap-1">
@@ -203,7 +203,7 @@
     <div id="admin-approval-panel" class="hidden glass-card rounded-2xl p-5 border border-amber-500/40 bg-amber-950/20 space-y-3">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-bold text-amber-300 flex items-center gap-2">
-          <i class="fa-solid fa-shield-halved"></i> Demandes de Points en attente d'approbation (Admin)
+          <i class="fa-solid fa-shield-halved"></i> Demandes de Points (> 5) en attente d'approbation (Admin)
         </h3>
         <span id="approval-count" class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-mono font-bold border border-amber-500/30">0</span>
       </div>
@@ -281,6 +281,30 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="children-cards-container">
           <!-- Dynamically populated -->
         </div>
+      </div>
+
+      <!-- Messagerie Familiale & Dictée Vocale -->
+      <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-4">
+        <h3 class="text-base font-bold text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><i class="fa-solid fa-comments text-indigo-400"></i> Messagerie Familiale</span>
+          <span class="text-xs text-slate-400 font-normal">Discussion en direct</span>
+        </h3>
+
+        <div id="chat-messages-container" class="h-48 overflow-y-auto space-y-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+          <!-- Dynamically populated messages -->
+        </div>
+
+        <form onsubmit="handleSendMessage(event)" class="flex items-center gap-2">
+          <div class="relative flex-1">
+            <input type="text" id="chat-input" placeholder="Écrivez un message..." required class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-4 pr-10 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm">
+            <button type="button" onclick="startVoiceRecognition()" id="mic-btn" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-400 p-1.5 transition-colors" title="Dictée vocale">
+              <i class="fa-solid fa-microphone"></i>
+            </button>
+          </div>
+          <button type="submit" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </form>
       </div>
 
       <!-- Chart and Detailed Logs -->
@@ -497,6 +521,11 @@
                 <option value="3">Niveau 3 : Pas d'écran pendant 24h (-3pt)</option>
                 <option value="4">Niveau 4 : Privation de sortie/jeu (-4pt)</option>
                 <option value="5">Niveau 5 : Avertissement Majeur (-5pt)</option>
+                <option value="6">Niveau 6 : Sanction Améliorée (-6pt)</option>
+                <option value="7">Niveau 7 : Sanction Forte (-7pt)</option>
+                <option value="8">Niveau 8 : Sanction Élevée (-8pt)</option>
+                <option value="9">Niveau 9 : Sanction Critique (-9pt)</option>
+                <option value="10">Niveau 10 : Sanction Maximale (-10pt)</option>
               </select>
             </div>
 
@@ -915,6 +944,7 @@
       rewards: JSON.parse(JSON.stringify(DEFAULT_REWARDS)),
       rules: JSON.parse(JSON.stringify(DEFAULT_RULES)),
       pendingApprovals: [],
+      chatMessages: [],
       pointRate: 0.50
     };
 
@@ -930,6 +960,7 @@
       renderPresets();
       renderSummary();
       renderRewards();
+      renderChat();
       initChart();
       updateDiplomaView();
       renderSlide();
@@ -989,6 +1020,7 @@
         switchTab('dashboard');
       }
 
+      renderDashboard();
       renderApprovalsPanel();
     }
 
@@ -1005,9 +1037,10 @@
           if (!appData.rewards) appData.rewards = JSON.parse(JSON.stringify(DEFAULT_REWARDS));
           if (!appData.rules) appData.rules = JSON.parse(JSON.stringify(DEFAULT_RULES));
           if (!appData.pendingApprovals) appData.pendingApprovals = [];
+          if (!appData.chatMessages) appData.chatMessages = [];
           if (appData.pointRate === undefined) appData.pointRate = 0.50;
         } catch (e) {
-          appData = { children: JSON.parse(JSON.stringify(DEFAULT_CHILDREN)), logs: [], presets: DEFAULT_PRESETS, rewards: DEFAULT_REWARDS, rules: DEFAULT_RULES, pendingApprovals: [], pointRate: 0.50 };
+          appData = { children: JSON.parse(JSON.stringify(DEFAULT_CHILDREN)), logs: [], presets: DEFAULT_PRESETS, rewards: DEFAULT_REWARDS, rules: DEFAULT_RULES, pendingApprovals: [], chatMessages: [], pointRate: 0.50 };
         }
       }
     }
@@ -1020,6 +1053,7 @@
       renderPresets();
       renderSummary();
       renderRewards();
+      renderChat();
       renderApprovalsPanel();
       updateChart();
       updateDiplomaView();
@@ -1047,12 +1081,14 @@
         if (result && result.record && result.record.children) {
           appData = result.record;
           if (!appData.pendingApprovals) appData.pendingApprovals = [];
+          if (!appData.chatMessages) appData.chatMessages = [];
           localStorage.setItem('family_rules_data', JSON.stringify(appData));
           renderDashboard();
           renderLogs();
           renderPresets();
           renderSummary();
           renderRewards();
+          renderChat();
           renderApprovalsPanel();
           updateChart();
           updateDiplomaView();
@@ -1077,12 +1113,13 @@
       list.innerHTML = '';
 
       appData.pendingApprovals.forEach((item, index) => {
+        const isAdd = item.actionType === 'ADD';
         const row = document.createElement('div');
         row.className = 'p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs';
         row.innerHTML = `
           <div>
-            <span class="font-bold text-white">${item.requester}</span> demande <strong class="text-emerald-400">+${item.points} pts</strong> pour <strong class="text-white">${item.child}</strong>
-            <p class="text-slate-400 italic mt-0.5">"${item.reason}"</p>
+            <span class="font-bold text-white">${item.requester}</span> demande de <strong class="${isAdd ? 'text-emerald-400' : 'text-rose-400'}">${isAdd ? 'rajouter' : 'retirer'} ${item.points} pts</strong> à <strong class="text-white">${item.child}</strong>
+            <p class="text-slate-400 italic mt-0.5">Motif : "${item.reason}"</p>
           </div>
           <div class="flex items-center gap-2">
             <button onclick="approveRequest(${index})" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold">Autoriser</button>
@@ -1097,13 +1134,18 @@
       const item = appData.pendingApprovals[index];
       if (!item) return;
 
-      appData.children[item.child].points += item.points;
+      if (item.actionType === 'ADD') {
+        appData.children[item.child].points += item.points;
+      } else {
+        appData.children[item.child].punishments += item.points;
+      }
+
       appData.logs.unshift({
         date: new Date().toLocaleString('fr-FR'),
         child: item.child,
-        type: 'Point (Approuvé)',
+        type: item.actionType === 'ADD' ? 'Point (Approuvé)' : 'Punition (Approuvée)',
         reason: `${item.reason} [Approuvé par Admin]`,
-        points: item.points
+        points: item.actionType === 'ADD' ? item.points : -item.points
       });
 
       appData.pendingApprovals.splice(index, 1);
@@ -1113,6 +1155,79 @@
     function rejectRequest(index) {
       appData.pendingApprovals.splice(index, 1);
       saveData();
+    }
+
+    /* MESSAGERE FAMILIALE & DICTÉE VOCALE */
+    function renderChat() {
+      const container = document.getElementById('chat-messages-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (!appData.chatMessages || appData.chatMessages.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-500 italic p-2 text-center">Aucun message pour le moment.</p>';
+        return;
+      }
+
+      appData.chatMessages.forEach(msg => {
+        const item = document.createElement('div');
+        const isMe = currentUser && msg.sender === currentUser.name;
+        item.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
+        item.innerHTML = `
+          <div class="max-w-[80%] rounded-xl px-3 py-2 text-xs ${isMe ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200 border border-slate-700'}">
+            <span class="font-bold text-[10px] block opacity-75 mb-0.5">${msg.sender} • ${msg.time}</span>
+            <p>${msg.text}</p>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function handleSendMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text || !currentUser) return;
+
+      if (!appData.chatMessages) appData.chatMessages = [];
+      appData.chatMessages.push({
+        sender: currentUser.name,
+        text: text,
+        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      });
+
+      input.value = '';
+      saveData();
+    }
+
+    function startVoiceRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("La reconnaissance vocale n'est pas supportée sur ce navigateur.");
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'fr-FR';
+      const micBtn = document.getElementById('mic-btn');
+      micBtn.classList.add('text-rose-500', 'animate-pulse');
+
+      recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById('chat-input').value = transcript;
+        micBtn.classList.remove('text-rose-500', 'animate-pulse');
+      };
+
+      recognition.onerror = function() {
+        micBtn.classList.remove('text-rose-500', 'animate-pulse');
+      };
+
+      recognition.onend = function() {
+        micBtn.classList.remove('text-rose-500', 'animate-pulse');
+      };
+
+      recognition.start();
     }
 
     function exportPhoneData() {
@@ -1304,6 +1419,7 @@
         rewards: appData.rewards,
         rules: appData.rules,
         pendingApprovals: [],
+        chatMessages: appData.chatMessages,
         pointRate: appData.pointRate
       };
       saveData();
@@ -1330,6 +1446,8 @@
       let totalPunish = 0;
       let topChild = null;
       let highestNet = -999;
+
+      const isAdmin = currentUser && currentUser.isAdmin;
 
       Object.values(appData.children).forEach(child => {
         const netScore = child.points - child.punishments;
@@ -1376,6 +1494,7 @@
             </div>
           </div>
 
+          ${isAdmin ? `
           <div class="flex gap-2 mt-2">
             <button onclick="quickAddPoint('${child.name}')" class="flex-1 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold">
               +1 Pt
@@ -1384,6 +1503,7 @@
               -1 Pt
             </button>
           </div>
+          ` : ''}
         `;
         container.appendChild(card);
       });
@@ -1402,13 +1522,14 @@
       const reason = document.getElementById('point-reason').value;
       const ptsVal = parseInt(document.getElementById('point-custom-val').value) || 1;
 
-      // Restriction non-admin (ex: Ethan) si > 5 points
+      // Restriction non-admin si > 5 points
       if (currentUser && !currentUser.isAdmin && ptsVal > 5) {
         if (!appData.pendingApprovals) appData.pendingApprovals = [];
         appData.pendingApprovals.push({
           requester: currentUser.name,
           child: child,
           points: ptsVal,
+          actionType: 'ADD',
           reason: reason,
           date: new Date().toLocaleString('fr-FR')
         });
@@ -1477,6 +1598,23 @@
       const reason = document.getElementById('punish-reason').value;
       const level = parseInt(document.getElementById('punish-level').value);
 
+      // Restriction non-admin si retrait > 5 points
+      if (currentUser && !currentUser.isAdmin && level > 5) {
+        if (!appData.pendingApprovals) appData.pendingApprovals = [];
+        appData.pendingApprovals.push({
+          requester: currentUser.name,
+          child: child,
+          points: level,
+          actionType: 'PUNISH',
+          reason: reason,
+          date: new Date().toLocaleString('fr-FR')
+        });
+        alert(`Demande de retrait envoyée ! Comme la punition dépasse 5 points, l'autorisation de Nathan Gouvernet (Admin) est requise.`);
+        document.getElementById('punish-reason').value = '';
+        saveData();
+        return;
+      }
+
       appData.children[child].punishments += level;
       appData.logs.unshift({
         date: new Date().toLocaleString('fr-FR'),
@@ -1507,6 +1645,21 @@
     function applyPresetPunishment(presetId, childName) {
       const preset = appData.presets.find(p => p.id === presetId);
       if (!preset) return;
+
+      if (currentUser && !currentUser.isAdmin && preset.points > 5) {
+        if (!appData.pendingApprovals) appData.pendingApprovals = [];
+        appData.pendingApprovals.push({
+          requester: currentUser.name,
+          child: childName,
+          points: preset.points,
+          actionType: 'PUNISH',
+          reason: `${preset.title} : ${preset.desc}`,
+          date: new Date().toLocaleString('fr-FR')
+        });
+        alert(`Demande envoyée ! L'autorisation de Nathan (Admin) est requise pour plus de 5 points.`);
+        saveData();
+        return;
+      }
 
       appData.children[childName].punishments += preset.points;
       appData.logs.unshift({
@@ -1586,6 +1739,7 @@
     }
 
     function quickAddPoint(child) {
+      if (!currentUser || !currentUser.isAdmin) return;
       appData.children[child].points += 1;
       appData.logs.unshift({
         date: new Date().toLocaleString('fr-FR'),
@@ -1598,6 +1752,7 @@
     }
 
     function quickAddPunish(child) {
+      if (!currentUser || !currentUser.isAdmin) return;
       appData.children[child].punishments += 1;
       appData.logs.unshift({
         date: new Date().toLocaleString('fr-FR'),
@@ -1789,6 +1944,10 @@
 
     function startCelebrationDiapo() {
       if (!currentUser || !currentUser.isAdmin) return;
+      
+      // Ouverture du lien YouTube dans un nouvel onglet avec lecture automatique
+      window.open("https://www.youtube.com/watch?v=cIg6odS-fA0&list=RDcIg6odS-fA0&autoplay=1", "_blank");
+
       celebrationStep = 0;
       renderCelebrationStep();
       openModal('celebration-modal');
@@ -1870,7 +2029,7 @@
     }
 
     function switchTab(tabId) {
-      if (currentUser && !currentUser.isAdmin && ['summary', 'rewards', 'diploma', 'slideshow'].includes(tabId)) {
+      if (currentUser && !currentUser.isAdmin && ['rewards', 'diploma', 'slideshow'].includes(tabId)) {
         alert("Accès réservé au compte Admin.");
         return;
       }
